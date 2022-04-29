@@ -1,0 +1,56 @@
+---
+title: "Normalize Data"
+author: "Wesley Burr"
+date: "29/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+```
+
+## Normalize Data
+
+We will load each of the data files, identify the 'primary' peak for
+Bromobenze, then normalize all Areas to be relative areas to the
+reference standard.
+
+```{r}
+load("./dat/foot1.rda")
+bromo <- foot1m %>% 
+           group_by(Sample) %>% 
+           subset(Name == "Benzene, bromo-") %>%
+           filter(Area == max(Area))
+split_foot <- foot1m %>% 
+                group_by(Sample) %>%
+                group_split()
+for(j in 1:length(split_foot)) {
+  split_foot[[j]]$Area <- split_foot[[j]]$Area / unlist(bromo[j, "Area"])
+}
+foot1m <- do.call("rbind", split_foot)
+save(file = "./dat/foot1n.rda", foot1m)
+```
+
+This worked, now let's just loop the others to save writing:
+
+```{r}
+for(k in 2:9) {
+  load(paste0("./dat/foot", k, ".rda"))
+  foot <- get(x = paste0("foot", k, "m"))
+  bromo <- foot %>% 
+           group_by(Sample) %>% 
+           subset(Name == "Benzene, bromo-") %>%
+           filter(Area == max(Area))
+  split_foot <- foot %>% 
+                group_by(Sample) %>%
+                group_split()
+  for(j in 1:length(split_foot)) {
+    split_foot[[j]]$Area <- split_foot[[j]]$Area / unlist(bromo[j, "Area"])
+  }
+  foot <- do.call("rbind", split_foot)
+  assign(x = paste0("foot", k, "m"), value = foot)
+  save(file = paste0("./dat/foot", k, "n.rda"), list = paste0("foot", k, "m"))
+}
+```
+

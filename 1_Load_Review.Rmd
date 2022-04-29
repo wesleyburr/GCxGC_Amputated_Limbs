@@ -1,0 +1,360 @@
+---
+title: "Load & Review Data v2 (get all feet sorted)"
+author: "Wesley"
+date: "2022/03/28"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load all of the Foot Data
+
+To start, we need to load all of the Excel files. To do this, we will use the
+readxl package. In addition, we're going to need to manipulate strings in 
+the following, so let's pre-emptively load that package.
+
+```{r libraries, error = FALSE, message = FALSE, warning = FALSE}
+library("readxl")
+library("stringr")
+```
+
+### Start with Foot 1, as Template
+
+Foot 1 has many sheets, each of which is a nicely organized listing of VOCs
+as detected by the GCxGC system's built-in scanning software, and exported. 
+We will load them all. 
+
+```{r load_data}
+sheets <- excel_sheets("./dat/foot1.xlsx")  # note: spaces in names
+foot1 <- lapply(sheets, FUN = function(x) {
+           read_xlsx(path = "./dat/foot1.xlsx",
+                     sheet = x) })
+sheets <- str_replace_all(sheets, " ", "_")
+names(foot1) <- sheets
+```
+
+Having things organized by sample is a good thing, but we really will
+find it annoying finding things long-term. In the following, I will take each
+of the lists of compounds relevant to Foot 1, and merge them into a single
+data.frame object, so we can then filter that frame down to get a specific
+compound, or a specific day/observation, and so on.
+
+Before we do this, the first sheets has the observations duplicated across
+the columns (wups!). Removing that:
+
+```{r remove_sheet1}
+foot1[[1]] <- foot1[[1]][, 1:ncol(foot1[[2]])]
+names(foot1[[1]]) <- names(foot1[[2]])  # fix names of sheet 1
+```
+
+```{r merge_sheets}
+foot1m <- do.call("rbind", foot1)
+names(foot1m) <- c("PeakNum", "Sample", "Name", "Formula", "RTs", "Similarity",
+                   "Area", "Height", "QuantMass", "BaseMass", "QuantSN", "PeakSN",
+                   "Type", "Conc", "ConcUnits")
+```
+
+A quick print of the data structure shows that the RTs, QuantMass and BaseMass
+won't be usable as numbers. The RTs need to be split, as well.
+
+```{r split_RTs}
+RT1 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot1m$RTs, ","), FUN = "[[", 1)
+         )
+       )
+RT2 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot1m$RTs, ","), FUN = "[[", 2)
+         )
+       )
+foot1m <- data.frame(foot1m[, c(1:4, 6:15)], RT1 = RT1, RT2 = RT2)
+```
+
+```{r samples}
+unique(foot1m$Sample)
+save(file = "./dat/foot1.rda", foot1m)
+```
+
+### Now Do Foot 2
+
+```{r load_data2}
+sheets <- excel_sheets("./dat/foot2.xlsx")  # note: spaces in names
+foot2 <- lapply(sheets, FUN = function(x) {
+           read_xlsx(path = "./dat/foot2.xlsx",
+                     sheet = x) })
+sheets <- str_replace_all(sheets, " ", "_")
+names(foot2) <- sheets
+
+foot2m <- do.call("rbind", foot2)
+names(foot2m) <- c("PeakNum", "Sample", "Name", "Formula", "RTs", "Similarity",
+                   "Area", "Height", "QuantMass", "BaseMass", "QuantSN", "PeakSN",
+                   "Type", "Conc", "ConcUnits")
+```
+
+```{r split_RTs2}
+RT1 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot2m$RTs, ","), FUN = "[[", 1)
+         )
+       )
+RT2 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot2m$RTs, ","), FUN = "[[", 2)
+         )
+       )
+foot2m <- data.frame(foot2m[, c(1:4, 6:15)], RT1 = RT1, RT2 = RT2)
+```
+
+```{r samples2}
+unique(foot2m$Sample)
+save(file = "./dat/foot2.rda", foot2m)
+```
+
+### Now Do Foot 3
+
+```{r load_data3}
+sheets <- excel_sheets("./dat/foot3.xlsx")  # note: spaces in names
+foot3 <- lapply(sheets, FUN = function(x) {
+           read_xlsx(path = "./dat/foot3.xlsx",
+                     sheet = x) })
+sheets <- str_replace_all(sheets, " ", "_")
+names(foot3) <- sheets
+
+foot3m <- do.call("rbind", foot3)
+names(foot3m) <- c("PeakNum", "Sample", "Name", "Formula", "RTs", "Similarity",
+                   "Area", "Height", "QuantMass", "BaseMass", "QuantSN", "PeakSN",
+                   "Type", "Conc", "ConcUnits")
+```
+
+```{r split_RTs3}
+RT1 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot3m$RTs, ","), FUN = "[[", 1)
+         )
+       )
+RT2 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot3m$RTs, ","), FUN = "[[", 2)
+         )
+       )
+foot3m <- data.frame(foot3m[, c(1:4, 6:15)], RT1 = RT1, RT2 = RT2)
+```
+
+```{r samples2}
+unique(foot3m$Sample)
+save(file = "./dat/foot3.rda", foot3m)
+```
+
+### Now Do Foot 4
+
+```{r load_data4}
+sheets <- excel_sheets("./dat/foot4.xlsx")  # note: spaces in names
+foot4 <- lapply(sheets, FUN = function(x) {
+           read_xlsx(path = "./dat/foot4.xlsx",
+                     sheet = x) })
+sheets <- str_replace_all(sheets, " ", "_")
+names(foot4) <- sheets
+
+foot4m <- do.call("rbind", foot4)
+names(foot4m) <- c("PeakNum", "Sample", "Name", "Formula", "RTs", "Similarity",
+                   "Area", "Height", "QuantMass", "BaseMass", "QuantSN", "PeakSN",
+                   "Type", "Conc", "ConcUnits")
+```
+
+```{r split_RTs4}
+RT1 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot4m$RTs, ","), FUN = "[[", 1)
+         )
+       )
+RT2 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot4m$RTs, ","), FUN = "[[", 2)
+         )
+       )
+foot4m <- data.frame(foot4m[, c(1:4, 6:15)], RT1 = RT1, RT2 = RT2)
+```
+
+```{r samples2}
+unique(foot4m$Sample)
+save(file = "./dat/foot4.rda", foot4m)
+```
+
+### Now Do Foot 5
+
+```{r load_data5}
+sheets <- excel_sheets("./dat/foot5.xlsx")  # note: spaces in names
+foot5 <- lapply(sheets, FUN = function(x) {
+           read_xlsx(path = "./dat/foot5.xlsx",
+                     sheet = x) })
+sheets <- str_replace_all(sheets, " ", "_")
+names(foot5) <- sheets
+
+foot5m <- do.call("rbind", foot5)
+names(foot5m) <- c("PeakNum", "Sample", "Name", "Formula", "RTs", "Similarity",
+                   "Area", "Height", "QuantMass", "BaseMass", "QuantSN", "PeakSN",
+                   "Type", "Conc", "ConcUnits")
+```
+
+```{r split_RTs4}
+RT1 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot5m$RTs, ","), FUN = "[[", 1)
+         )
+       )
+RT2 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot5m$RTs, ","), FUN = "[[", 2)
+         )
+       )
+foot5m <- data.frame(foot5m[, c(1:4, 6:15)], RT1 = RT1, RT2 = RT2)
+```
+
+```{r samples2}
+unique(foot5m$Sample)
+save(file = "./dat/foot5.rda", foot5m)
+```
+
+### Now Do Foot 6
+
+```{r load_data6}
+sheets <- excel_sheets("./dat/foot6.xlsx")  # note: spaces in names
+foot6 <- lapply(sheets, FUN = function(x) {
+           read_xlsx(path = "./dat/foot6.xlsx",
+                     sheet = x) })
+sheets <- str_replace_all(sheets, " ", "_")
+names(foot6) <- sheets
+
+foot6m <- do.call("rbind", foot6)
+names(foot6m) <- c("PeakNum", "Sample", "Name", "Formula", "RTs", "Similarity",
+                   "Area", "Height", "QuantMass", "BaseMass", "QuantSN", "PeakSN",
+                   "Type", "Conc", "ConcUnits")
+```
+
+```{r split_RTs4}
+RT1 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot6m$RTs, ","), FUN = "[[", 1)
+         )
+       )
+RT2 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot6m$RTs, ","), FUN = "[[", 2)
+         )
+       )
+foot6m <- data.frame(foot6m[, c(1:4, 6:15)], RT1 = RT1, RT2 = RT2)
+```
+
+```{r samples2}
+unique(foot6m$Sample)
+save(file = "./dat/foot6.rda", foot6m)
+```
+
+### Now Do Foot 7
+
+```{r load_data7}
+sheets <- excel_sheets("./dat/foot7.xlsx")  # note: spaces in names
+foot7 <- lapply(sheets, FUN = function(x) {
+           read_xlsx(path = "./dat/foot7.xlsx",
+                     sheet = x) })
+sheets <- str_replace_all(sheets, " ", "_")
+names(foot7) <- sheets
+
+foot7m <- do.call("rbind", foot7)
+names(foot7m) <- c("PeakNum", "Sample", "Name", "Formula", "RTs", "Similarity",
+                   "Area", "Height", "QuantMass", "BaseMass", "QuantSN", "PeakSN",
+                   "Type", "Conc", "ConcUnits")
+```
+
+```{r split_RTs4}
+RT1 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot7m$RTs, ","), FUN = "[[", 1)
+         )
+       )
+RT2 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot7m$RTs, ","), FUN = "[[", 2)
+         )
+       )
+foot7m <- data.frame(foot7m[, c(1:4, 6:15)], RT1 = RT1, RT2 = RT2)
+```
+
+```{r samples2}
+unique(foot7m$Sample)
+save(file = "./dat/foot7.rda", foot7m)
+```
+
+### Now Do Foot 8
+
+```{r load_data8}
+sheets <- excel_sheets("./dat/foot8.xlsx")  # note: spaces in names
+foot8 <- lapply(sheets, FUN = function(x) {
+           read_xlsx(path = "./dat/foot8.xlsx",
+                     sheet = x) })
+sheets <- str_replace_all(sheets, " ", "_")
+names(foot8) <- sheets
+
+foot8m <- do.call("rbind", foot8)
+names(foot8m) <- c("PeakNum", "Sample", "Name", "Formula", "RTs", "Similarity",
+                   "Area", "Height", "QuantMass", "BaseMass", "QuantSN", "PeakSN",
+                   "Type", "Conc", "ConcUnits")
+```
+
+```{r split_RTs4}
+RT1 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot8m$RTs, ","), FUN = "[[", 1)
+         )
+       )
+RT2 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot8m$RTs, ","), FUN = "[[", 2)
+         )
+       )
+foot8m <- data.frame(foot8m[, c(1:4, 6:15)], RT1 = RT1, RT2 = RT2)
+```
+
+```{r samples2}
+unique(foot8m$Sample)
+save(file = "./dat/foot8.rda", foot8m)
+```
+
+### Now Do Foot 9
+
+```{r load_data9}
+sheets <- excel_sheets("./dat/foot9.xlsx")  # note: spaces in names
+foot9 <- lapply(sheets, FUN = function(x) {
+           read_xlsx(path = "./dat/foot9.xlsx",
+                     sheet = x) })
+sheets <- str_replace_all(sheets, " ", "_")
+names(foot9) <- sheets
+
+foot9m <- do.call("rbind", foot9)
+names(foot9m) <- c("PeakNum", "Sample", "Name", "Formula", "RTs", "Similarity",
+                   "Area", "Height", "QuantMass", "BaseMass", "QuantSN", "PeakSN",
+                   "Type", "Conc", "ConcUnits")
+```
+
+```{r split_RTs4}
+RT1 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot9m$RTs, ","), FUN = "[[", 1)
+         )
+       )
+RT2 <- as.numeric(
+         unlist(
+           lapply(strsplit(foot9m$RTs, ","), FUN = "[[", 2)
+         )
+       )
+foot9m <- data.frame(foot9m[, c(1:4, 6:15)], RT1 = RT1, RT2 = RT2)
+```
+
+```{r samples2}
+unique(foot9m$Sample)
+save(file = "./dat/foot9.rda", foot9m)
+```
+

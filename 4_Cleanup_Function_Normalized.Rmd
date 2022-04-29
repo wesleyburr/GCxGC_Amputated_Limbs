@@ -1,0 +1,491 @@
+---
+title: "General Function Cleaning (Normalized)"
+author: "Wesley Burr"
+date: "28/03/2022"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(stringr)
+```
+
+## Redo, with Normalization
+
+Big difference in this file versus 3_Cleanup is that we will use
+Bromobenzene-normalized inputs instead of non-normalized inputs.
+
+```{r function}
+##
+#  clean_common: Function to select, filter, clean, filter and merge 
+#  compounds using the logic of:
+#  * unique to the samples, not the control, for ALL samples; or
+#  * in both samples and control, but much stronger in the control
+# 
+#  Inputs:
+#  * dat: data.frame sourced from merging spreadsheets of GCxGC output
+#  * sample_names: names of specific samples (e.g., SS5_Foot_1_a)
+#  * control_names: names of specific control samples (e.g., SS5_Foot_1_Control_a)
+#  * ratio_par: cut-off for the logic of "in both samples and control" - if this
+#      is set very large, will eliminate cross-overs.
+#
+#  Returns:
+#  * samples_keep: list of full data.frames for individual replicates, cleaned
+#      down to relevant compounds using above logic
+##
+clean_common <- function(dat,
+                         sample_names,
+                         control_names,
+                         ratio_par = 2.0) {
+  
+  samples <- vector("list", length = length(sample_names))
+  names(samples) <- sample_names
+  controls <- vector("list", length = length(control_names))
+  names(controls) <- control_names
+  
+  # Extract specific samples and controls of interest and
+  # dump all but the largest Area example of each compound
+  for(j in 1:length(sample_names)) {
+    samples[[j]] <- dat %>% subset(Sample == sample_names[j]) %>%
+                      group_by(Name) %>%
+                      filter(Area == max(Area)) %>%
+                      ungroup() %>% filter(substr(Name, 1, 4) != "Peak")
+    samples[[j]] <- samples[[j]][!duplicated(samples[[j]]$Name), ]
+  } 
+  for(j in 1:length(control_names)) {
+    controls[[j]] <- dat %>% subset(Sample == control_names[j]) %>%
+                      group_by(Name) %>%
+                      filter(Area == max(Area)) %>%
+                      ungroup() %>% filter(substr(Name, 1, 4) != "Peak")
+    controls[[j]] <- controls[[j]][!duplicated(controls[[j]]$Name), ]
+  } 
+  # merge controls
+  control <- do.call("rbind", controls)
+  control <- control %>% group_by(Name) %>%
+                      filter(Area == max(Area)) %>%
+                      ungroup() 
+  control <- control[!duplicated(control$Name), ]
+
+  # Find compounds that are in each sample that are also in control
+  samples_keep <- samples
+  for(j in 1:length(sample_names)) {
+    samp <- samples[[j]] %>% filter(samples[[j]]$Name %in% control$Name)
+    cont <- control %>% filter(control$Name %in% samples[[j]]$Name)
+   
+    # ratio is high enough to keep 
+    samp_SN <- unlist(samp[order(samp$Name), "PeakSN"])
+    cont_SN <- unlist(cont[order(cont$Name), "PeakSN"])
+    contrib1 <- samp %>% filter((samp_SN / cont_SN) > ratio_par)
+   
+    # also, compounds that are *not* in the controls 
+    contrib2 <- samples[[j]] %>% filter(!(samples[[j]]$Name %in% control$Name))
+    samples_keep[[j]] <- rbind(contrib1, contrib2)
+  }
+  names(samples_keep) <- sample_names
+  samples_keep
+}
+
+
+##
+#
+#  join_common: Function which takes output of clean_common above,
+#    and merges based on common presence across all replicates of compounds. 
+#
+#  Inputs:
+#  * compounds: list of data.frames, 16 columns as in the spreadsheets
+#  
+#  Outputs:
+#  * common: merged, simplified data.frame, created via inner_join of data.frames after filtering.
+##
+join_common <- function(compounds) {
+  n_samp <- length(compounds)
+  subset_compounds <- vector("list", length = n_samp)
+  for(j in 1:n_samp) {
+    subset_compounds[[j]] <- compounds[[j]]
+    if(n_samp > 1) {
+      for(k in (1:n_samp)[-j]) {
+        subset_compounds[[j]] <- subset_compounds[[j]] %>%
+                                   subset(subset_compounds[[j]]$Name %in% compounds[[k]]$Name)
+      }
+    }
+    subset_compounds[[j]] <- subset_compounds[[j]] %>% select(Name, Area, PeakSN)
+  }
+  
+  # Join first two, if they exist
+  if(n_samp > 1) {
+    common <- inner_join(x = subset_compounds[[1]], y = subset_compounds[[2]], by = "Name")
+    if(n_samp >= 3) {
+      for(j in 3:n_samp) {
+        common <- inner_join(x = common, y = subset_compounds[[j]], by = "Name")  
+      }
+    }
+  } else {
+    common <- subset_compounds[[1]][, c("Name", "Area", "PeakSN")]
+  }
+  names(common) <- c("Name", paste0(c("Area_", "PeakSN_"), rep(1:n_samp, each = 2)))
+  common
+}
+```
+
+# Working Through All the Feet
+
+```{r foot1}
+load("./dat/foot1n.rda")
+foot1m$Sample <- str_replace_all(foot1m$Sample, " ", "_")
+
+foot1_SS2 <- join_common( clean_common(foot1m,
+                sample_names = c("SS2_Foot_1_a", "SS2_Foot_1_b"),
+                control_names = c("SS2_Foot_1_Control"),
+                ratio_par = 2.0) )
+foot1_SS3 <- join_common( clean_common(foot1m,
+                sample_names = c("SS3_Foot_1_a", "SS3_Foot_1_b", "SS3_Foot_1_c"),
+                control_names = c("SS3_Foot_1_Control"),
+                ratio_par = 2.0) )
+foot1_SS4 <- join_common( clean_common(foot1m,
+                sample_names = c("SS4_Foot_1_a", "SS4_Foot_1_b", "SS4_Foot_1_c"),
+                control_names = c("SS4_Foot_1_Control_a", "SS4_Foot_1_Control_b", "SS4_Foot_1_Control_c"),
+                ratio_par = 2.0) )
+foot1_SS5 <- join_common( clean_common(foot1m,
+                sample_names = c("SS5_Foot_1_a", "SS5_Foot_1_b", "SS5_Foot_1_c"),
+                control_names = c("SS5_Foot_1_Control_a", "SS5_Foot_1_Control_b", "SS5_Foot_1_Control_c"),
+                ratio_par = 2.0) )
+foot1_SS6 <- join_common( clean_common(foot1m,
+                sample_names = c("SS6_Foot_1_a", "SS6_Foot_1_b"),
+                control_names = c("SS6_Foot_1_Control_a", "SS6_Foot_1_Control_b"),
+                ratio_par = 2.0) )
+```
+
+
+```{r foot2}
+load("./dat/foot2n.rda")
+foot2m$Sample <- str_replace_all(foot2m$Sample, " ", "_")
+
+foot2_SS2 <- join_common( clean_common(foot2m,
+                sample_names = c("SS2_Foot_2_a", "SS2_Foot_2_b"),
+                control_names = c("SS2_Foot_2_Control"),
+                ratio_par = 2.0) )
+foot2_SS3 <- join_common( clean_common(foot2m,
+                sample_names = c("SS3_Foot_2_a", "SS3_Foot_2_b", "SS3_Foot_2_c"),
+                control_names = c("SS3_Foot_2_Control"),
+                ratio_par = 2.0) )
+foot2_SS4 <- join_common( clean_common(foot2m,
+                sample_names = c("SS4_Foot_2_a", "SS4_Foot_2_b", "SS4_Foot_2_c"),
+                control_names = c("SS4_Foot_2_Control_a", "SS4_Foot_2_Control_b", "SS4_Foot_2_Control_c"),
+                ratio_par = 2.0) )
+foot2_SS5 <- join_common( clean_common(foot2m,
+                sample_names = c("SS5_Foot_2_a", "SS5_Foot_2_b", "SS5_Foot_2_c"),
+                control_names = c("SS5_Foot_2_Control_a", "SS5_Foot_2_Control_b", "SS5_Foot_2_Control_c"),
+                ratio_par = 2.0) )
+foot2_SS6 <- join_common( clean_common(foot2m,
+                sample_names = c("SS6_Foot_2_a", "SS6_Foot_2_b"),
+                control_names = c("SS6_Foot_2_Control_a", "SS6_Foot_2_Control_b"),
+                ratio_par = 2.0) )
+```
+
+```{r foot3}
+load("./dat/foot3n.rda")
+foot3m$Sample <- str_replace_all(foot3m$Sample, " ", "_")
+
+foot3_SS5 <- join_common( clean_common(foot3m,
+                sample_names = c("SS5_Bone_3_a", "SS5_Foot_3_b"),
+                control_names = c("SS5_Foot_3_Control_a_(PVC_+_big_jar_a)",
+                                  "SS5_Foot_3_Control_b_(PVC_+_zip_lock_a)"),
+                ratio_par = 2.0) )
+foot3_SS6 <- join_common( clean_common(foot3m,
+                sample_names = c("SS6_Foot_3_a", "SS6_Foot_3_b", "SS6_Foot_3_c"),
+                control_names = c("SS6_Foot_3_Control_a_(PVC_+_big_glass_jar_a)",
+                                  "SS6_Foot_3_Control_a_(PVC_+_zip_lock_a)"),
+                ratio_par = 2.0) )
+```
+
+```{r foot4}
+load("./dat/foot4n.rda")
+foot4m$Sample <- str_replace_all(foot4m$Sample, " ", "_")
+
+foot4_SS5 <- join_common( clean_common(foot4m,
+                sample_names = c("SS5_Foot_4_a", "SS5_Foot_4_b"),
+                control_names = c("SS5_Foot_4_Control_a_(PVC_+_big_jar_a)",
+                                  "SS5_Foot_4_Control_b_(PVC_+_zip_lock_a)"),
+                ratio_par = 2.0) )
+foot4_SS6 <- join_common( clean_common(foot4m,
+                sample_names = c("SS6_Foot_4_a", "SS6_Foot_4_b", "SS6_Foot_4_c"),
+                control_names = c("SS6_Foot_4_Control_a_(PVC_+_big_glass_jar_a)",
+                                  "SS6_Foot_4_Control_a_(PVC_+_zip_lock_a)"),
+                ratio_par = 2.0) )
+```
+
+```{r foot5}
+load("./dat/foot5n.rda")
+foot5m$Sample <- str_replace_all(foot5m$Sample, " ", "_")
+
+foot5_SS2 <- join_common( clean_common(foot5m,
+                sample_names = c("SS2_Foot_5_a"),
+                control_names = c("SS2_Foot_5_Control"),
+                ratio_par = 2.0) )
+foot5_SS3 <- join_common( clean_common(foot5m,
+                sample_names = c("SS3_Foot_5_a", "SS3_Foot_5_b", "SS3_Foot_5_c"),
+                control_names = c("SS3_Foot_5_Control"),
+                ratio_par = 2.0) )
+foot5_SS4 <- join_common( clean_common(foot5m,
+                sample_names = c("SS4_Foot_5_a", "SS4_Foot_5_b", "SS4_Foot_5_c"),
+                control_names = c("SS4_Foot_5_Control_a", "SS4_Foot_5_Control_b", 
+                                  "SS4_Foot_5_Control_c"),
+                ratio_par = 2.0) )
+foot5_SS5 <- join_common( clean_common(foot5m,
+                sample_names = c("SS5_Foot_5_a", "SS5_Foot_5_b", "SS5_Foot_5_c"),
+                control_names = c("SS5_Foot_5_Control_a", "SS5_Foot_5_Control_b", 
+                                  "SS5_Foot_5_Control_c"),
+                ratio_par = 2.0) )
+foot5_SS6 <- join_common( clean_common(foot5m,
+                sample_names = c("SS6_Foot_5_a", "SS6_Foot_5_b"),
+                control_names = c("SS6_Foot_5_Control_a", "SS6_Foot_5_Control_b", 
+                                  "SS6_Foot_5_Control_c"),
+                ratio_par = 2.0) )
+```
+
+```{r foot6}
+load("./dat/foot6n.rda")
+foot6m$Sample <- str_replace_all(foot6m$Sample, " ", "_")
+
+foot6_SS5 <- join_common( clean_common(foot6m,
+                sample_names = c("SS5_Foot_6_a", "SS5_Foot_6_b", "SS5_Foot_6_c"),
+                control_names = c("SS5_Foot_6_Control_a", "SS5_Foot_6_Control_b", "SS5_Foot_6_Control_c"),
+                ratio_par = 2.0) )
+foot6_SS6 <- join_common( clean_common(foot6m,
+                sample_names = c("SS6_Foot_6_a", "SS6_Foot_6_b"),
+                control_names = c("SS6_Foot_6_Control_a", "SS6_Foot_6_Control_b"),
+                ratio_par = 2.0) )
+```
+
+```{r foot7}
+load("./dat/foot7n.rda")
+foot7m$Sample <- str_replace_all(foot7m$Sample, " ", "_")
+
+foot7_SS5 <- join_common( clean_common(foot7m,
+                sample_names = c("SS5_Foot_7_a", "SS5_Foot_7_b", "SS5_Foot_7_c"),
+                control_names = c("SS5_Foot_7_Control_a", "SS5_Foot_7_Control_b", "SS5_Foot_7_Control_c"),
+                ratio_par = 2.0) )
+foot7_SS6 <- join_common( clean_common(foot7m,
+                sample_names = c("SS6_Foot_7_a", "SS6_Foot_7_b", "SS6_Foot_7_c"),
+                control_names = c("SS6_Foot_7_Control_a", "SS6_Foot_7_Control_b"),
+                ratio_par = 2.0) )
+```
+
+```{r foot8}
+load("./dat/foot8n.rda")
+foot8m$Sample <- str_replace_all(foot8m$Sample, " ", "_")
+
+foot8_SS4 <- join_common( clean_common(foot8m,
+                sample_names = c("SS4_Foot_8_a", "SS4_Foot_8_b"),
+                control_names = c("SS4_Foot_8_Control_a", "SS4_Foot_8_Control_b", "SS4_Foot_8_Control_c"),
+                ratio_par = 2.0) )
+foot8_SS5 <- join_common( clean_common(foot8m,
+                sample_names = c("SS5_Foot_8_a", "SS5_Foot_8_b", "SS5_Foot_8_c"),
+                control_names = c("SS5_Foot_8_Control_a", "SS5_Foot_8_Control_b", "SS5_Foot_8_Control_c"),
+                ratio_par = 2.0) )
+foot8_SS6 <- join_common( clean_common(foot8m,
+                sample_names = c("SS6_Foot_8_a", "SS6_Foot_8_b"),
+                control_names = c("SS6_Foot_8_Control_a", "SS6_Foot_8_Control_b"),
+                ratio_par = 2.0) )
+```
+
+```{r foot9}
+load("./dat/foot9n.rda")
+foot9m$Sample <- str_replace_all(foot9m$Sample, " ", "_")
+
+foot9_SS4 <- join_common( clean_common(foot9m,
+                sample_names = c("SS4_Foot_9_a", "SS4_Foot_9_b", "SS4_Foot_9_c"),
+                control_names = c("SS4_Foot_9_Control_a", "SS4_Foot_9_Control_b", "SS4_Foot_9_Control_c"),
+                ratio_par = 2.0) )
+foot9_SS5 <- join_common( clean_common(foot9m,
+                sample_names = c("SS5_Foot_9_a", "SS5_Foot_9_b", "SS5_Foot_9_c"),
+                control_names = c("SS5_Foot_9_Control_a", "SS5_Foot_9_Control_b", "SS5_Foot_9_Control_c"),
+                ratio_par = 2.0) )
+foot9_SS6 <- join_common( clean_common(foot9m,
+                sample_names = c("SS6_Foot_9_a", "SS6_Foot_9_b", "SS6_Foot_9_c"),
+                control_names = c("SS6_Foot_9_Control_a", "SS6_Foot_9_Control_b"),
+                ratio_par = 2.0) )
+```
+
+## Write Excel Sheets for Rushali to Look At (Normalized)
+
+```{r foot1w}
+library("xlsx")
+write.xlsx(x = foot1_SS2,
+           file = "./dat_comp/foot1_compounds_norm.xlsx",
+           sheetName = "SS2",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = FALSE)
+for(j in 3:6) {
+  write.xlsx(x = get(paste0("foot1_SS", j)),
+             file = "./dat_comp/foot1_compounds_norm.xlsx",
+             sheetName = paste0("SS", j),
+             col.names = TRUE,
+             row.names = TRUE,
+             append = TRUE) 
+}
+```
+
+```{r foot2w}
+library("xlsx")
+write.xlsx(x = foot2_SS2,
+           file = "./dat_comp/foot2_compounds_norm.xlsx",
+           sheetName = "SS2",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = FALSE)
+for(j in 3:6) {
+  write.xlsx(x = get(paste0("foot2_SS", j)),
+             file = "./dat_comp/foot2_compounds_norm.xlsx",
+             sheetName = paste0("SS", j),
+             col.names = TRUE,
+             row.names = TRUE,
+             append = TRUE) 
+}
+```
+
+```{r foot3w}
+library("xlsx")
+write.xlsx(x = foot3_SS5,
+           file = "./dat_comp/foot3_compounds_norm.xlsx",
+           sheetName = "SS5",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = FALSE)
+write.xlsx(x = foot3_SS6,
+           file = "./dat_comp/foot3_compounds_norm.xlsx",
+           sheetName = "SS6",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = TRUE) 
+```
+
+```{r foot4w}
+library("xlsx")
+write.xlsx(x = foot4_SS5,
+           file = "./dat_comp/foot4_compounds_norm.xlsx",
+           sheetName = "SS5",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = FALSE)
+write.xlsx(x = foot4_SS6,
+           file = "./dat_comp/foot4_compounds_norm.xlsx",
+           sheetName = "SS6",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = TRUE) 
+```
+
+```{r foot5w}
+library("xlsx")
+write.xlsx(x = foot5_SS2,
+           file = "./dat_comp/foot5_compounds_norm.xlsx",
+           sheetName = "SS2",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = FALSE)
+for(j in 3:6) {
+  write.xlsx(x = get(paste0("foot5_SS", j)),
+             file = "./dat_comp/foot5_compounds_norm.xlsx",
+             sheetName = paste0("SS", j),
+             col.names = TRUE,
+             row.names = TRUE,
+             append = TRUE) 
+}
+```
+
+```{r foot6w}
+library("xlsx")
+write.xlsx(x = foot6_SS5,
+           file = "./dat_comp/foot6_compounds_norm.xlsx",
+           sheetName = "SS5",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = FALSE)
+for(j in 6:6) {
+  write.xlsx(x = get(paste0("foot6_SS", j)),
+             file = "./dat_comp/foot6_compounds_norm.xlsx",
+             sheetName = paste0("SS", j),
+             col.names = TRUE,
+             row.names = TRUE,
+             append = TRUE) 
+}
+```
+
+```{r foot7w}
+library("xlsx")
+write.xlsx(x = foot7_SS5,
+           file = "./dat_comp/foot7_compounds_norm.xlsx",
+           sheetName = "SS5",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = FALSE)
+for(j in 6:6) {
+  write.xlsx(x = get(paste0("foot7_SS", j)),
+             file = "./dat_comp/foot7_compounds_norm.xlsx",
+             sheetName = paste0("SS", j),
+             col.names = TRUE,
+             row.names = TRUE,
+             append = TRUE) 
+}
+```
+
+```{r foot8w}
+library("xlsx")
+write.xlsx(x = foot8_SS4,
+           file = "./dat_comp/foot8_compounds_norm.xlsx",
+           sheetName = "SS4",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = FALSE)
+for(j in 5:6) {
+  write.xlsx(x = get(paste0("foot8_SS", j)),
+             file = "./dat_comp/foot8_compounds_norm.xlsx",
+             sheetName = paste0("SS", j),
+             col.names = TRUE,
+             row.names = TRUE,
+             append = TRUE) 
+}
+```
+
+```{r foot9w}
+library("xlsx")
+write.xlsx(x = foot9_SS4,
+           file = "./dat_comp/foot9_compounds_norm.xlsx",
+           sheetName = "SS4",
+           col.names = TRUE,
+           row.names = TRUE,
+           append = FALSE)
+for(j in 5:6) {
+  write.xlsx(x = get(paste0("foot9_SS", j)),
+             file = "./dat_comp/foot9_compounds_norm.xlsx",
+             sheetName = paste0("SS", j),
+             col.names = TRUE,
+             row.names = TRUE,
+             append = TRUE) 
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
