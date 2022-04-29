@@ -1,0 +1,10 @@
+cff-version: 1.0-0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Burr
+    given-names: Wesley Samuel
+    orcid: https://orcid.org/0000-0002-2058-1899
+title: "GCxGC Project on Amputated Limbs: Codebase"
+version: 1.0-0
+doi: 10.5281/zenodo.6506298
+date-released: 2022-04-29
