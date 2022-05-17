@@ -589,8 +589,10 @@ names(pca_dat) <- c("Name", names(test))
 for(j in 1:length(test)) {
   x <- test[[j]]
   x_names <- x$Name
-  x_area <- apply(x, MAR = 1, FUN = function(y) { max(y[seq(2, length(y), 2)]) })
-  
+  x_area <- apply(x, MAR = 1, FUN = function(y) { 
+    z <- y[seq(2, length(y), 2)]; 
+    z <- as.numeric(z);
+    max(z) })
   pca_dat[pca_dat$Name %in% x_names, j+1] <- x_area
 }
 extracting <- pca_dat[, -1]
