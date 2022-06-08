@@ -1,7 +1,7 @@
 ---
 title: "Setting up for PCA"
 author: "Wesley Burr"
-date: "29/03/2022"
+date: "2022/06/07"
 output:
   word_document: default
   html_document: default
@@ -593,7 +593,11 @@ for(j in 1:length(test)) {
     z <- y[seq(2, length(y), 2)]; 
     z <- as.numeric(z);
     max(z) })
-  pca_dat[pca_dat$Name %in% x_names, j+1] <- x_area
+  # need to be more careful here
+  for(k in 1:length(x_names)) {
+    pca_dat[pca_dat$Name == x_names[k], j+1] <- x_area[k]
+  }
+  # pca_dat[pca_dat$Name %in% x_names, j+1] <- x_area  # note: this doesn't work well based on alphabetization
 }
 extracting <- pca_dat[, -1]
 extracting <- apply(extracting, MAR = 2, FUN = function(x) { as.numeric(x) })
